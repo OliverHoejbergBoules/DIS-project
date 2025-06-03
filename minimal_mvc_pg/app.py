@@ -8,6 +8,10 @@ app = Flask(__name__)
 def index():
     selected = request.form.get('ticker', 'AAPL')
 
+    # Regular expression validation: ticker must be 1-5 uppercase letters
+    if not re.match(r'^[A-Z]{1,5}$', selected):
+        return "Invalid ticker format", 400
+
     conn = db_connection()
     cur = conn.cursor()
 
