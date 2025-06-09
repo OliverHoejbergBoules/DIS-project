@@ -1,13 +1,20 @@
-# We build on top of the an existing python image
-FROM python:3.10.17-alpine
-# This image comes with a /code folder where we should have our code
+FROM python:3.11-slim
+
 WORKDIR /code
 
-# We install probaby more system libraries that actually need
-RUN apk add --no-cache gcc musl-dev linux-headers postgresql postgresql-contrib libpq-dev bash
-# For now we only copy pyproject.toml file to the docker image because we want to install all our Python libraries at this stage
-COPY pyproject.toml pyproject.toml
-RUN pip install -e .
+# Install dependencies
+COPY pyproject.toml .
+RUN pip install --no-cache-dir -r <(pip install --dry-run . | awk '/^\s+-/ {print $2}')
 
-# The entry point is called only when the container starts
- ENTRYPOINT ["./entrypoint.sh"]
+# Copy application code
+COPY . .
+
+# Copy CSV files (these must exist in your project directory)
+COPY AAPL.csv /code/AAPL.csv
+COPY MSFT.csv /code/MSFT.csv
+
+# Expose Flask port
+EXPOSE 5000
+
+# Run Flask app
+ENTRYPOINT ["./entrypoint.sh"]
