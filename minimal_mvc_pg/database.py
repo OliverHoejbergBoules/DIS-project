@@ -1,32 +1,55 @@
 import psycopg2
+import csv
 import os
 
-# Try to get from system enviroment variable
-# Set your Postgres user and password as second arguments of these two next function calls
-user = os.environ.get('PGUSER', 'postgres')
-password = os.environ.get('PGPASSWORD', '123')
-host = os.environ.get('HOST', 'localhost')
+DB_NAME = os.getenv("POSTGRES_DB", "todo")
+DB_USER = os.getenv("PGPUSER", "postgres")
+DB_PASSWORD = os.getenv("PGPASSWORD", "123")
+DB_HOST = os.getenv("HOST", "localhost")
 
 def db_connection():
-    db = "dbname='todo' user=" + user + " host=" + host + " password =" + password
-    conn = psycopg2.connect(db)
-
-    return conn
+    return psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST
+    )
 
 def init_db():
     conn = db_connection()
     cur = conn.cursor()
-    cur.execute('''CREATE TABLE IF NOT EXISTS categories (id SERIAL PRIMARY KEY, category_name TEXT NOT NULL UNIQUE)''')
-    cur.execute('''CREATE TABLE IF NOT EXISTS todos (id SERIAL PRIMARY KEY, todo_text TEXT NOT NULL UNIQUE, category_id INTEGER NOT NULL, FOREIGN KEY(category_id) REFERENCES categories(id))''')
+
+    # Create table if it doesn't exist
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS stock_prices (
+            ticker TEXT,
+            date DATE,
+            close NUMERIC
+        );
+    """)
     conn.commit()
 
-    categories = ['DIS', 'House chores']
-    for category in categories:
-        cur.execute('INSERT INTO categories (category_name) VALUES (%s) ON CONFLICT DO NOTHING', (category,))
+    # Check if data exists
+    cur.execute("SELECT COUNT(*) FROM stock_prices;")
+    count = cur.fetchone()[0]
 
-    todos = [('Assignment 1', 'DIS'), ('Groceries', 'House chores'), ('Assignment 2', 'DIS'), ('Project', 'DIS')]
-    for (todo, category) in todos:
-        cur.execute('INSERT INTO todos (todo_text, category_id) VALUES (%s, (SELECT id FROM categories WHERE category_name = %s)) ON CONFLICT DO NOTHING', (todo, category))
+    if count == 0:
+        print("Loading CSV data...")
+        load_csv_data(conn, "AAPL.csv", "AAPL")
+        load_csv_data(conn, "MSFT.csv", "MSFT")
+    else:
+        print("Database already populated.")
 
     conn.commit()
     conn.close()
+
+def load_csv_data(conn, filename, ticker):
+    with open(filename, newline='') as f:
+        reader = csv.DictReader(f)
+        data = [(ticker, row["Date"], row["Close"]) for row in reader]
+
+    with conn.cursor() as cur:
+        cur.executemany("""
+            INSERT INTO stock_prices (ticker, date, close)
+            VALUES (%s, %s, %s);
+        """, data)
