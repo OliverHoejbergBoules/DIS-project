@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request
 from database import init_db, db_connection
+import re
 
 init_db()
 app = Flask(__name__)
